@@ -97,6 +97,13 @@ export const newMessageForm = expressAsyncHandler(async (req, res) => {
   res.render("form", { title: "Add a New Blip" });
 });
 
+function normalizeIp(ip) {
+  if (ip.startsWith("::ffff:")) {
+    return ip.split(":").pop(); // Extract the IPv4 part of the address
+  }
+  return ip;
+}
+
 function getRealIp(req) {
   const forwarded = req.headers["x-forwarded-for"];
   return forwarded ? forwarded.split(",")[0] : normalizeIp(req.ip);
