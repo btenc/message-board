@@ -22,7 +22,7 @@ const pool = new Pool({
   port: Number(process.env.DB_PORT),
 });
 
-const messagesPerPage = 6; // Number of messages per page
+const messagesPerPage = 8; // Number of messages per page
 let ipMessageCounts = {}; // Object to track IP-based message limits
 
 // Reset IP counts every 24 hours
