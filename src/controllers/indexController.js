@@ -97,9 +97,14 @@ export const newMessageForm = expressAsyncHandler(async (req, res) => {
   res.render("form", { title: "Add a New Blip" });
 });
 
+function getRealIp(req) {
+  const forwarded = req.headers["x-forwarded-for"];
+  return forwarded ? forwarded.split(",")[0] : normalizeIp(req.ip);
+}
+
 export const createMessage = expressAsyncHandler(async (req, res) => {
   const { messageText, messageUser } = req.body;
-  const userIp = req.ip;
+  const userIp = getRealIp(req);
 
   // Check if IP is already in the ipMessageCounts object
   if (!ipMessageCounts[userIp]) {
@@ -162,7 +167,7 @@ export const createMessage = expressAsyncHandler(async (req, res) => {
 
 export const likeMessage = expressAsyncHandler(async (req, res) => {
   const messageId = req.params.id;
-  const userIp = req.ip;
+  const userIp = getRealIp(req);
 
   const messageResult = await pool.query(
     "SELECT * FROM messages WHERE id = $1",
