@@ -4,8 +4,8 @@ import { Filter } from "bad-words";
 let messages = [
   {
     id: 1,
-    text: "One step at a time!",
-    user: "Isaac",
+    text: "First",
+    user: "Bill",
     added: new Date(),
     likes: 1,
     likedBy: [],
@@ -56,12 +56,13 @@ export const index = expressAsyncHandler(async (req, res) => {
 // View individual message handler
 export const viewMessage = expressAsyncHandler(async (req, res) => {
   const message = messages.find((m) => m.id === parseInt(req.params.id, 10));
-  const userIp = req.ip;
-  const userHasLiked = message.likedBy.includes(userIp);
 
   if (!message) {
     return res.status(404).render("404", { title: "Blip Not Found" });
   }
+
+  const userIp = req.ip;
+  const userHasLiked = message.likedBy.includes(userIp);
 
   res.render("message", {
     title: "Blip Details",
