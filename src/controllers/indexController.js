@@ -1,45 +1,65 @@
 import expressAsyncHandler from "express-async-handler";
+import pkg from "pg";
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 import { Filter } from "bad-words";
 
-let messages = [
-  {
-    id: 1,
-    text: "First",
-    user: "Bill",
-    added: new Date(),
-    likes: 1,
-    likedBy: [],
-  },
-];
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({
+  path: path.resolve(__dirname, "../../.env"),
+});
+
+const { Pool } = pkg;
+
+const pool = new Pool({
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: String(process.env.DB_PASSWORD),
+  port: Number(process.env.DB_PORT),
+});
 
 const messagesPerPage = 8; // Number of messages per page
+let ipMessageCounts = {}; // Object to track IP-based message limits
+
+// Reset IP counts every 24 hours
+setInterval(
+  () => {
+    ipMessageCounts = {};
+  },
+  24 * 60 * 60 * 1000
+); // 24 hours in milliseconds
 
 export const index = expressAsyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
-  const sortBy = req.query.sortBy || "date"; // Default sorting is by date
-  const totalMessages = messages.length;
-  const totalPages = Math.ceil(totalMessages / messagesPerPage);
+  const sortBy = req.query.sortBy || "date";
   const userIp = req.ip;
 
-  if (page > totalPages || page < 1) {
+  const resultCount = await pool.query("SELECT COUNT(*) FROM messages");
+  const totalMessages = parseInt(resultCount.rows[0].count, 10);
+  const totalPages = Math.ceil(totalMessages / messagesPerPage);
+
+  if ((page > totalPages && totalPages > 0) || page < 0) {
     return res.status(404).render("404", { title: "Page Not Found" });
   }
 
-  let sortedMessages;
+  let sortQuery = "ORDER BY added DESC";
   if (sortBy === "likes") {
-    sortedMessages = [...messages].sort((a, b) => b.likes - a.likes);
-  } else {
-    sortedMessages = [...messages].sort((a, b) => b.id - a.id);
+    sortQuery = "ORDER BY likes DESC";
   }
 
-  const startIndex = (page - 1) * messagesPerPage;
-  const endIndex = page * messagesPerPage;
+  const offset = (page - 1) * messagesPerPage;
+  const messagesResult = await pool.query(
+    `SELECT * FROM messages ${sortQuery} LIMIT $1 OFFSET $2`,
+    [messagesPerPage, offset]
+  );
 
-  const paginatedMessages = sortedMessages.slice(startIndex, endIndex);
-
-  const messagesWithUserLikeInfo = paginatedMessages.map((message) => ({
+  const messagesWithUserLikeInfo = messagesResult.rows.map((message) => ({
     ...message,
-    userHasLiked: message.likedBy.includes(userIp),
+    userHasLiked: message.liked_by.includes(userIp),
   }));
 
   res.render("index", {
@@ -49,20 +69,22 @@ export const index = expressAsyncHandler(async (req, res) => {
     totalPages: totalPages,
     totalMessages: totalMessages,
     messagesPerPage: messagesPerPage,
-    sortBy: sortBy, // Pass the sortBy parameter to the template
+    sortBy: sortBy,
   });
 });
 
-// View individual message handler
 export const viewMessage = expressAsyncHandler(async (req, res) => {
-  const message = messages.find((m) => m.id === parseInt(req.params.id, 10));
+  const messageResult = await pool.query(
+    "SELECT * FROM messages WHERE id = $1",
+    [req.params.id]
+  );
 
-  if (!message) {
+  if (messageResult.rows.length === 0) {
     return res.status(404).render("404", { title: "Blip Not Found" });
   }
 
-  const userIp = req.ip;
-  const userHasLiked = message.likedBy.includes(userIp);
+  const message = messageResult.rows[0];
+  const userHasLiked = message.liked_by.includes(req.ip);
 
   res.render("message", {
     title: "Blip Details",
@@ -71,20 +93,9 @@ export const viewMessage = expressAsyncHandler(async (req, res) => {
   });
 });
 
-// Render form to create a new message
 export const newMessageForm = expressAsyncHandler(async (req, res) => {
   res.render("form", { title: "Add a New Blip" });
 });
-
-let ipMessageCounts = {};
-
-// Reset IP counts every 24 hours
-setInterval(
-  () => {
-    ipMessageCounts = {};
-  },
-  24 * 60 * 60 * 1000
-); // 24 hours in milliseconds
 
 export const createMessage = expressAsyncHandler(async (req, res) => {
   const { messageText, messageUser } = req.body;
@@ -137,44 +148,44 @@ export const createMessage = expressAsyncHandler(async (req, res) => {
     });
   }
 
-  // Assign a unique ID to the new message
-  const newId = messages.length ? messages[messages.length - 1].id + 1 : 1;
-
-  // Create the new message object
-  const newMessage = {
-    id: newId,
-    text: messageText,
-    user: messageUser,
-    added: new Date(),
-    likes: 0,
-    likedBy: [],
-  };
+  // Insert the new message into the database
+  const insertResult = await pool.query(
+    "INSERT INTO messages (text, \"username\", likes, liked_by) VALUES ($1, $2, 0, '{}') RETURNING *",
+    [messageText, messageUser]
+  );
 
   // Increment the message count for this IP
   ipMessageCounts[userIp]++;
 
-  // Add the new message to the beginning of the array
-  messages.push(newMessage);
-
   res.redirect("/");
 });
 
-// Handle liking a message
 export const likeMessage = expressAsyncHandler(async (req, res) => {
-  const message = messages.find((m) => m.id === parseInt(req.params.id, 10));
+  const messageId = req.params.id;
   const userIp = req.ip;
 
-  if (message) {
-    if (message.likedBy.includes(userIp)) {
-      message.likes -= 1;
-      message.likedBy = message.likedBy.filter((ip) => ip !== userIp);
-    } else {
-      message.likes += 1;
-      message.likedBy.push(userIp);
-    }
+  const messageResult = await pool.query(
+    "SELECT * FROM messages WHERE id = $1",
+    [messageId]
+  );
 
-    res.redirect(req.get("referer"));
-  } else {
-    res.status(404).render("404", { title: "Message Not Found" });
+  if (messageResult.rows.length === 0) {
+    return res.status(404).render("404", { title: "Message Not Found" });
   }
+
+  const message = messageResult.rows[0];
+
+  if (message.liked_by.includes(userIp)) {
+    await pool.query(
+      "UPDATE messages SET likes = likes - 1, liked_by = array_remove(liked_by, $1) WHERE id = $2",
+      [userIp, messageId]
+    );
+  } else {
+    await pool.query(
+      "UPDATE messages SET likes = likes + 1, liked_by = array_append(liked_by, $1) WHERE id = $2",
+      [userIp, messageId]
+    );
+  }
+
+  res.redirect(req.get("referer"));
 });

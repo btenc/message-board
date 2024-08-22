@@ -43,8 +43,8 @@
         <li>
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div onclick="window.location.href='/message/<%= message.id %>'" style="flex-grow: 1; cursor: pointer;">
-              <strong><%= message.user %>:</strong> <%= message.text %> 
-              <em>(<%= message.added.toLocaleString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) %>)</em>
+              <strong><%= message.username %>:</strong> <%= message.text %> 
+              <em>(<%= new Date(message.added).toLocaleString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) %>)</em>
             </div>
             <form action="/message/<%= message.id %>/like" method="POST" style="margin-left: 10px;">
               <button type="submit" class="like-button <%= message.userHasLiked ? 'liked' : '' %>">

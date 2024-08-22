@@ -16,6 +16,7 @@
 
 - [**Node.js**](https://nodejs.org/)
 - [**Express**](https://expressjs.com/)
+- [**PostgreSQL**](https://www.postgresql.org/)
 - [**dotenv**](https://www.npmjs.com/package/dotenv)
 - [**express-async-handler**](https://www.npmjs.com/package/express-async-handler)
 
