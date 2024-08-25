@@ -42,7 +42,11 @@ function normalizeIp(ip) {
 
 function getRealIp(req) {
   const forwarded = req.headers["x-forwarded-for"];
-  return forwarded ? forwarded.split(",")[0] : normalizeIp(req.ip);
+  if (forwarded) {
+    return forwarded.split(",")[0];
+  } else {
+    return normalizeIp(req.ip);
+  }
 }
 
 export const index = expressAsyncHandler(async (req, res) => {
