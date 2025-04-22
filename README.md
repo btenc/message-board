@@ -1,3 +1,5 @@
+# Update 4/22/25 - I am no longer hosting this project on railway... 
+
 # ChatterBox Message Board
 
 - ChatterBox is a simple message board web application where users can share their thoughts, interact with others by liking messages.
